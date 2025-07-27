@@ -69,36 +69,44 @@ if ticker:
         if df is not None and not df.empty:
             st.write(f"Dataframe shape: {df.shape}")  # Debugging line to check dataframe size
 
-            # Show Metrics
-            col1, col2 = st.columns(2)
-            col1.metric("Last Close", f"{df['Close'].iloc[-1]:.2f}")
-            col2.metric("RSI(14)", f"{df['RSI'].iloc[-1]:.2f}")
+            # Check data type and last value of 'Close'
+            st.write(f"Data Type of 'Close' column: {df['Close'].dtype}")
+            st.write(f"Last value of 'Close': {df['Close'].iloc[-1]}")
 
-            # Plot Candlestick chart with SMA
-            fig = go.Figure()
-            fig.add_trace(go.Candlestick(
-                x=df.index,
-                open=df['Open'],
-                high=df['High'],
-                low=df['Low'],
-                close=df['Close'],
-                name="Candlestick"
-            ))
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df['SMA20'], mode='lines', name='SMA20', line=dict(color='blue'))
-            )
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df['SMA50'], mode='lines', name='SMA50', line=dict(color='orange'))
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            # Ensure that the last value is not NaN
+            if pd.notna(df['Close'].iloc[-1]):
+                # Show Metrics
+                col1, col2 = st.columns(2)
+                col1.metric("Last Close", f"{df['Close'].iloc[-1]:.2f}")
+                col2.metric("RSI(14)", f"{df['RSI'].iloc[-1]:.2f}")
 
-            # Plot RSI chart
-            fig_rsi = go.Figure()
-            fig_rsi.add_trace(go.Scatter(
-                x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='purple'))
-            )
-            fig_rsi.add_hline(y=70, line_dash='dot', line_color='red', annotation_text='Overbought (70)')
-            fig_rsi.add_hline(y=30, line_dash='dot', line_color='green', annotation_text='Oversold (30)')
-            st.plotly_chart(fig_rsi, use_container_width=True)
+                # Plot Candlestick chart with SMA
+                fig = go.Figure()
+                fig.add_trace(go.Candlestick(
+                    x=df.index,
+                    open=df['Open'],
+                    high=df['High'],
+                    low=df['Low'],
+                    close=df['Close'],
+                    name="Candlestick"
+                ))
+                fig.add_trace(go.Scatter(
+                    x=df.index, y=df['SMA20'], mode='lines', name='SMA20', line=dict(color='blue'))
+                )
+                fig.add_trace(go.Scatter(
+                    x=df.index, y=df['SMA50'], mode='lines', name='SMA50', line=dict(color='orange'))
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Plot RSI chart
+                fig_rsi = go.Figure()
+                fig_rsi.add_trace(go.Scatter(
+                    x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='purple'))
+                )
+                fig_rsi.add_hline(y=70, line_dash='dot', line_color='red', annotation_text='Overbought (70)')
+                fig_rsi.add_hline(y=30, line_dash='dot', line_color='green', annotation_text='Oversold (30)')
+                st.plotly_chart(fig_rsi, use_container_width=True)
+            else:
+                st.error("The last value of 'Close' is NaN.")
         else:
             st.error("The data could not be loaded or is empty. Please check the ticker symbol and date range.")
