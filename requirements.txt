@@ -1,4 +1,6 @@
-streamlit 
-agno
 openai
+agno
+duckduckgo-search
 yfinance
+fastapi[standard] 
+sqlalchemy
