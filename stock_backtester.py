@@ -67,6 +67,8 @@ if ticker:
     else:
         # Check if the DataFrame is empty before trying to access the last row
         if df is not None and not df.empty:
+            st.write(f"Dataframe shape: {df.shape}")  # Debugging line to check dataframe size
+
             # Show Metrics
             col1, col2 = st.columns(2)
             col1.metric("Last Close", f"{df['Close'].iloc[-1]:.2f}")
