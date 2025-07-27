@@ -1,13 +1,10 @@
 import streamlit as st
-import pandas as pd
 import yfinance as yf
+import requests
+from textblob import TextBlob
+import pandas as pd
 import plotly.graph_objects as go
 from datetime import date, timedelta
-
-# ---------------------- Config ----------------------
-st.set_page_config(page_title="📊 Interactive Stock Analysis", layout="wide")
-st.title("📊 Interactive Stock Analysis")
-st.caption("A basic stock analysis tool with toggleable SMA and RSI indicators.")
 
 # ---------------------- Sidebar ----------------------
 st.sidebar.header("Stock Selection")
@@ -15,83 +12,61 @@ ticker = st.sidebar.text_input("Enter Stock Ticker (e.g., AAPL)", value="AAPL").
 start_date = st.sidebar.date_input("Start Date", date.today() - timedelta(days=365))
 end_date = st.sidebar.date_input("End Date", date.today())
 
-# ---------------------- Helper Function ----------------------
+# ---------------------- News Fetching Function ----------------------
+def get_stock_news(ticker):
+    api_key = 'YOUR_NEWSAPI_KEY'  # Replace with your NewsAPI key
+    url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={api_key}"
+    response = requests.get(url)
+    news_data = response.json()
+    return news_data['articles']
 
-# Download stock data
+# ---------------------- Sentiment Analysis ----------------------
+def analyze_sentiment(news_articles):
+    sentiments = []
+    for article in news_articles:
+        text = article['title'] + ' ' + article['description']
+        sentiment = TextBlob(text).sentiment.polarity  # Get sentiment polarity
+        sentiments.append(sentiment)
+    return sum(sentiments) / len(sentiments) if sentiments else 0
+
+# ---------------------- Stock Data Fetching ----------------------
 @st.cache_data
 def download_data(ticker, start, end):
     try:
         df = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=True)
-        if df.empty:
-            return None, "No data returned"
         return df, None
     except Exception as e:
-        return None, f"Download error: {e}"
+        return None, f"Error downloading {ticker}: {e}"
 
 # ---------------------- Main ----------------------
-
 if ticker:
+    # Fetch Stock Data
     df, error = download_data(ticker, start_date, end_date)
-
+    
     if error:
         st.error(error)
     else:
-        # Calculate SMA (20 and 50 periods)
-        df['SMA20'] = df['Close'].rolling(20).mean()
-        df['SMA50'] = df['Close'].rolling(50).mean()
-
-        # Calculate RSI (14 periods)
-        delta = df['Close'].diff()
-        gain = delta.clip(lower=0)
-        loss = -delta.clip(upper=0)
-        avg_gain = gain.rolling(14).mean()
-        avg_loss = loss.rolling(14).mean()
-        rs = avg_gain / avg_loss.replace(0, pd.NA)
-        df['RSI'] = 100 - (100 / (1 + rs))
-
-        # ---------------------- Interactive Sidebar ----------------------
-        show_candlestick = st.sidebar.checkbox('Show Candlestick Chart', value=True)
-        show_sma = st.sidebar.checkbox('Show SMA (20 & 50)', value=True)
-        show_rsi = st.sidebar.checkbox('Show RSI (14)', value=True)
-
-        # ---------------------- Chart: Candlestick with SMAs ----------------------
-        if show_candlestick:
-            fig = go.Figure()
-
-            # Candlestick trace
-            fig.add_trace(go.Candlestick(
-                x=df.index,
-                open=df['Open'],
-                high=df['High'],
-                low=df['Low'],
-                close=df['Close'],
-                name="Candlestick"
-            ))
-
-            if show_sma:
-                # SMA20 trace
-                fig.add_trace(go.Scatter(
-                    x=df.index, y=df['SMA20'], mode='lines', name='SMA20', line=dict(color='blue'))
-                )
-
-                # SMA50 trace
-                fig.add_trace(go.Scatter(
-                    x=df.index, y=df['SMA50'], mode='lines', name='SMA50', line=dict(color='orange'))
-                )
-
-            st.plotly_chart(fig, use_container_width=True)
-
-        # ---------------------- RSI Chart ----------------------
-        if show_rsi:
-            fig_rsi = go.Figure()
-
-            # RSI trace
-            fig_rsi.add_trace(go.Scatter(
-                x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='purple'))
-            )
-
-            # Overbought and Oversold lines
-            fig_rsi.add_hline(y=70, line_dash='dot', line_color='red', annotation_text='Overbought (70)')
-            fig_rsi.add_hline(y=30, line_dash='dot', line_color='green', annotation_text='Oversold (30)')
-
-            st.plotly_chart(fig_rsi, use_container_width=True)
+        # Get News Data
+        news = get_stock_news(ticker)
+        sentiment_score = analyze_sentiment(news)
+        
+        # Show News Sentiment
+        st.write(f"**News Sentiment for {ticker}:** {'Positive' if sentiment_score > 0 else 'Negative' if sentiment_score < 0 else 'Neutral'} (Sentiment Score: {sentiment_score:.2f})")
+        
+        # Plot Stock Data
+        fig = go.Figure()
+        fig.add_trace(go.Candlestick(
+            x=df.index,
+            open=df['Open'],
+            high=df['High'],
+            low=df['Low'],
+            close=df['Close'],
+            name="Candlestick"
+        ))
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # AI-based Analysis (Simple Example)
+        if sentiment_score > 0:
+            st.write("AI-based Prediction: **Bullish** - Stock might go up based on positive sentiment!")
+        else:
+            st.write("AI-based Prediction: **Bearish** - Stock might go down based on negative sentiment.")
