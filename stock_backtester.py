@@ -31,7 +31,6 @@ def download_data(ticker, start, end):
         df = yf.download(ticker, start=start, end=end + timedelta(days=1), progress=False, auto_adjust=True, threads=False)
         if df.empty:
             return None, "No data returned"
-        # Basic columns check
         required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
         missing_cols = [c for c in required_cols if c not in df.columns]
         if missing_cols:
@@ -143,33 +142,28 @@ def analyze_ticker(ticker):
     if error:
         return None, None, f"Error downloading {ticker}: {error}"
 
-    # Show raw data for debug (optional)
-    st.write(f"Downloaded data for {ticker} (showing first 5 rows):")
-    st.dataframe(df.head())
+    if len(df) < 60:
+        return None, None, f"Not enough data to analyze {ticker} (need at least 60 rows)."
 
     # Calculate indicators
     df['SMA20'] = df['Close'].rolling(20).mean()
     df['SMA50'] = df['Close'].rolling(50).mean()
     df['RSI'] = rsi(df['Close'])
-    df['MACD'], df['MACD_signal'], df['MACD_hist'] = macd(df['Close'])
+    macd_line, macd_signal, macd_hist = macd(df['Close'])
+    df['MACD'] = macd_line
+    df['MACD_signal'] = macd_signal
+    df['MACD_hist'] = macd_hist
     df['ATR'] = atr(df)
     df['Support'], df['Resistance'] = support_resistance(df, window=sr_window)
 
     required_cols = ['SMA20', 'SMA50', 'RSI', 'MACD', 'MACD_signal', 'ATR', 'Support', 'Resistance']
-    existing_cols = [col for col in required_cols if col in df.columns]
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        return None, None, f"Missing indicator columns after calculation: {missing_cols}"
 
-    missing = set(required_cols) - set(existing_cols)
-    if missing:
-        return None, None, f"Missing indicator columns after calculation: {', '.join(missing)}"
-
-    try:
-        df.dropna(subset=existing_cols, inplace=True)
-    except KeyError as e:
-        missing_cols = list(set(existing_cols) - set(df.columns))
-        return None, None, f"Error dropping NaNs — missing columns: {missing_cols}"
-
+    df = df.dropna(subset=required_cols)
     if df.empty:
-        return None, None, f"Not enough data to calculate indicators for {ticker}"
+        return None, None, f"Not enough data after dropping NaNs for {ticker}"
 
     latest = df.iloc[-1].copy()
     latest['Signal'] = generate_signal(latest)
