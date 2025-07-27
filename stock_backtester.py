@@ -8,86 +8,44 @@ from datetime import date, timedelta
 # ---------------------------- CONFIG ----------------------------
 st.set_page_config(page_title="📈 Stock Signals (Support/Resistance + Tips)", page_icon="📈", layout="wide")
 st.title("📈 Stock Signals – Support/Resistance + Tips")
-st.caption("Your tickers, your rules. No lotto. Signals based on SMA20/SMA50, RSI(14), and S/R levels.")
+st.caption("Your tickers, your rules. Signals based on SMA20/SMA50, RSI(14), and S/R levels.")
 
 # ---------------------------- YOUR TICKERS ----------------------------
-# If you want to map your display symbols to Yahoo tickers, do it here (left=display, right=yf symbol).
-# For now, we try as-is; those that fail will be skipped.
 TICKERS = [
-    "AAPL",      # Apple CDR (CAD Hedged) - likely wrong for Yahoo, but we keep as user-provided
-    "ABCL",
-    "AEHR",
-    "AI",
-    "AMZN",
-    "BAM",
-    "BRK",       # Berkshire CDR (may not work)
-    "CGL",
-    "CRCL",      # might fail
-    "CRWV",      # might fail
-    "CU",
-    "DCBO",
-    "DRUG",
-    "ENB",
-    "GSI",       # might fail
-    "IRD",       # (Opus Genetics) missing in earlier lists but present in your text, might fail
-    "ISRG",
-    "JOBY",
-    "LUNR",
-    "MCLD.H",    # might fail
-    "MDA",
-    "META",
-    "MSFT",
-    "NVDA",
-    "NVTS",
-    "NXT",
-    "PSA",
-    "QBTS",
-    "QSR",
-    "RAIL",
-    "RDDT",
-    "RGTI",
-    "RXRX",
-    "SMCI",
-    "SOUN",
-    "SRFM",
-    "STN",
-    "TEM",
-    "TMC",
-    "VEE",
+    "AAPL", "ABCL", "AEHR", "AI", "AMZN", "BAM", "BRK",
+    "CGL", "CRCL", "CRWV", "CU", "DCBO", "DRUG", "ENB",
+    "GSI", "IRD", "ISRG", "JOBY", "LUNR", "MCLD.H", "MDA",
+    "META", "MSFT", "NVDA", "NVTS", "NXT", "PSA", "QBTS",
+    "QSR", "RAIL", "RDDT", "RGTI", "RXRX", "SMCI", "SOUN",
+    "SRFM", "STN", "TEM", "TMC", "VEE",
 ]
 
-# If you do know the correct Yahoo symbols, set a mapping like:
-# YF_MAP = {"AAPL": "AAPL.NE", "MSFT": "MSFT.NE", ...}
 YF_MAP = {sym: sym for sym in TICKERS}
 
 # ---------------------------- HELPERS ----------------------------
 def rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    # Force 1D Series
+    if isinstance(series, pd.DataFrame):
+        series = series.iloc[:, 0]
+    series = pd.Series(series).astype(float)
+
     delta = series.diff()
-    gain = np.where(delta > 0, delta, 0.0)
-    loss = np.where(delta < 0, -delta, 0.0)
-    gain_ema = pd.Series(gain, index=series.index).ewm(alpha=1/period, min_periods=period).mean()
-    loss_ema = pd.Series(loss, index=series.index).ewm(alpha=1/period, min_periods=period).mean()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+
+    gain_ema = gain.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    loss_ema = loss.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+
     rs = gain_ema / loss_ema.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
+    rsi_val = 100 - (100 / (1 + rs))
+    return rsi_val.clip(0, 100)
 
 def get_support_resistance(df: pd.DataFrame, window: int = 20):
-    """
-    Simple rolling support/resistance:
-      - Support: rolling min of Low over last `window`
-      - Resistance: rolling max of High over last `window`
-    """
     support = df['Low'].rolling(window).min()
     resistance = df['High'].rolling(window).max()
     return support, resistance
 
 def generate_signal(row):
-    """
-    Generate a BUY/SELL/HOLD suggestion given the latest row of indicators.
-    Priority:
-      - If price breaks ABOVE resistance with bull trend -> BUY
-      - If price breaks BELOW support with bear trend -> SELL
-      - Else HOLD
-    """
     price = row['Close']
     sma20 = row['SMA20']
     sma50 = row['SMA50']
@@ -97,8 +55,8 @@ def generate_signal(row):
 
     trend_bull = (price > sma20) and (sma20 > sma50)
     trend_bear = (price < sma20) and (sma20 < sma50)
-    broke_up = (price > resistance) if not np.isnan(resistance) else False
-    broke_down = (price < support) if not np.isnan(support) else False
+    broke_up = (pd.notna(resistance) and price > resistance)
+    broke_down = (pd.notna(support) and price < support)
 
     if broke_up and trend_bull and rsi_val < 70:
         return "BUY"
@@ -111,50 +69,40 @@ def generate_signal(row):
     return "HOLD"
 
 def tips_from_row(row, sl_pct=0.03, tp_pct=0.06):
-    """
-    Provide a simple tip:
-      - If BUY: stop-loss slightly below support or -3%, TP slightly above resistance or +6%
-      - If SELL: the inverse
-      - HOLD: show distances to S/R
-    """
     price = row['Close']
     support = row['Support']
     resistance = row['Resistance']
     signal = row['Signal']
 
     tips = []
-
-    # Distances
-    if not np.isnan(support):
+    if pd.notna(support):
         dist_to_support = (price - support) / price * 100
         tips.append(f"Distance to support: {dist_to_support:.2f}%")
     else:
         tips.append("Support: N/A")
 
-    if not np.isnan(resistance):
+    if pd.notna(resistance):
         dist_to_res = (resistance - price) / price * 100
         tips.append(f"Distance to resistance: {dist_to_res:.2f}%")
     else:
         tips.append("Resistance: N/A")
 
     if signal == "BUY":
-        # choose SL: max(support, price*(1-sl_pct)) if support exists
         stop_loss = price * (1 - sl_pct)
-        if not np.isnan(support):
-            stop_loss = min(stop_loss, support * 0.995)  # a hair below support
+        if pd.notna(support):
+            stop_loss = min(stop_loss, support * 0.995)
         take_profit = price * (1 + tp_pct)
-        if not np.isnan(resistance) and resistance > price:
-            take_profit = max(take_profit, resistance * 1.01)  # slightly above resistance
+        if pd.notna(resistance) and resistance > price:
+            take_profit = max(take_profit, resistance * 1.01)
         tips.append(f"Suggested stop-loss: {stop_loss:.2f}")
         tips.append(f"Suggested take-profit: {take_profit:.2f}")
 
     elif signal == "SELL":
-        # if shorting, invert logic
         stop_loss = price * (1 + sl_pct)
-        if not np.isnan(resistance):
+        if pd.notna(resistance):
             stop_loss = max(stop_loss, resistance * 1.005)
         take_profit = price * (1 - tp_pct)
-        if not np.isnan(support) and support < price:
+        if pd.notna(support) and support < price:
             take_profit = min(take_profit, support * 0.99)
         tips.append(f"Suggested buy-to-cover (TP): {take_profit:.2f}")
         tips.append(f"Suggested stop-loss: {stop_loss:.2f}")
@@ -164,28 +112,47 @@ def tips_from_row(row, sl_pct=0.03, tp_pct=0.06):
 
     return " | ".join(tips)
 
+@st.cache_data(ttl=3600)
+def cached_download(ticker, start, end):
+    return yf.download(
+        ticker, start=start, end=end + timedelta(days=1),
+        progress=False, auto_adjust=True, threads=False
+    )
+
 def fetch_and_analyze(ticker, start, end, window_sr=20):
     yf_ticker = YF_MAP.get(ticker, ticker)
-    df = yf.download(yf_ticker, start=start, end=end, progress=False, auto_adjust=True)
+    try:
+        df = cached_download(yf_ticker, start, end)
+    except Exception as e:
+        return None, f"Download failed for {ticker} ({yf_ticker}): {e}"
+
     if df.empty:
         return None, f"No data for {ticker} (mapped to {yf_ticker})"
+
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [' '.join(col).strip() for col in df.columns.values]
+
+    close = df.get('Close')
+    if close is None:
+        return None, f"'Close' column missing for {ticker} (mapped to {yf_ticker})"
+
+    if isinstance(close, pd.DataFrame):
+        close = close.iloc[:, 0]
+    df['Close'] = close.astype(float)
 
     df['SMA20'] = df['Close'].rolling(20).mean()
     df['SMA50'] = df['Close'].rolling(50).mean()
     df['RSI'] = rsi(df['Close'], 14)
     df['Support'], df['Resistance'] = get_support_resistance(df, window=window_sr)
 
-    # remove rows without indicators yet
     df = df.dropna(subset=['SMA20', 'SMA50', 'RSI', 'Support', 'Resistance'])
-
     if df.empty:
         return None, f"Not enough data to compute indicators for {ticker}"
 
-    # Latest signal/tips
     latest = df.iloc[-1].copy()
-    signal = generate_signal(latest)
-    latest['Signal'] = signal
+    latest['Signal'] = generate_signal(latest)
     tip = tips_from_row(latest)
+
     return (df, latest, tip), None
 
 def plot_chart(df, ticker):
@@ -248,7 +215,6 @@ if scan_all:
         with st.expander("Symbols with no/invalid data"):
             for e in errors:
                 st.write("•", e)
-
     st.stop()
 
 # ---------------------------- SINGLE TICKER MODE ----------------------------
@@ -269,7 +235,6 @@ else:
 
     st.markdown(f"**Tips:** {tip}")
 
-    # Charts
     price_fig = plot_chart(df, ticker)
     st.plotly_chart(price_fig, use_container_width=True)
 
