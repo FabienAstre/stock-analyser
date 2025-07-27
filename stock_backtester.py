@@ -23,14 +23,22 @@ start_date = st.sidebar.date_input("Start Date", date.today() - timedelta(days=3
 end_date = st.sidebar.date_input("End Date", date.today())
 sr_window = st.sidebar.slider("Support/Resistance window (days)", 10, 60, 20)
 
-# ---------------------- Indicators ----------------------
+# ---------------------- Helpers ----------------------
 
 @st.cache_data(ttl=3600)
 def download_data(ticker, start, end):
-    df = yf.download(ticker, start=start, end=end + timedelta(days=1), progress=False, auto_adjust=True, threads=False)
-    if df.empty:
-        return None
-    return df
+    try:
+        df = yf.download(ticker, start=start, end=end + timedelta(days=1), progress=False, auto_adjust=True, threads=False)
+        if df.empty:
+            return None, "No data returned"
+        # Basic columns check
+        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+        missing_cols = [c for c in required_cols if c not in df.columns]
+        if missing_cols:
+            return None, f"Missing columns in data: {missing_cols}"
+        return df, None
+    except Exception as e:
+        return None, f"Download error: {e}"
 
 def rsi(series, period=14):
     delta = series.diff()
@@ -62,8 +70,6 @@ def support_resistance(df, window=20):
     support = df['Low'].rolling(window).min()
     resistance = df['High'].rolling(window).max()
     return support, resistance
-
-# ---------------------- Signal Logic ----------------------
 
 def generate_signal(row):
     price = row['Close']
@@ -99,43 +105,47 @@ def tips(row):
     atr_val = row['ATR']
     signal = row['Signal']
 
-    tips = []
+    tips_list = []
 
     if pd.notna(support):
-        tips.append(f"Distance to Support: {(price - support) / price * 100:.2f}%")
+        tips_list.append(f"Distance to Support: {(price - support) / price * 100:.2f}%")
     else:
-        tips.append("Support: N/A")
+        tips_list.append("Support: N/A")
 
     if pd.notna(resistance):
-        tips.append(f"Distance to Resistance: {(resistance - price) / price * 100:.2f}%")
+        tips_list.append(f"Distance to Resistance: {(resistance - price) / price * 100:.2f}%")
     else:
-        tips.append("Resistance: N/A")
+        tips_list.append("Resistance: N/A")
 
     if pd.notna(atr_val):
-        tips.append(f"ATR (14): {atr_val:.2f}")
+        tips_list.append(f"ATR (14): {atr_val:.2f}")
 
     if signal in ("BUY", "STRONG BUY"):
         sl = price - atr_val if pd.notna(atr_val) else price * 0.97
         tp = price + 2 * atr_val if pd.notna(atr_val) else price * 1.06
-        tips.append(f"Suggested Stop-Loss ~ {sl:.2f}")
-        tips.append(f"Suggested Take-Profit ~ {tp:.2f}")
+        tips_list.append(f"Suggested Stop-Loss ~ {sl:.2f}")
+        tips_list.append(f"Suggested Take-Profit ~ {tp:.2f}")
 
     elif signal in ("SELL", "STRONG SELL"):
         sl = price + atr_val if pd.notna(atr_val) else price * 1.03
         tp = price - 2 * atr_val if pd.notna(atr_val) else price * 0.94
-        tips.append(f"Suggested Buy-to-Cover (TP) ~ {tp:.2f}")
-        tips.append(f"Suggested Stop-Loss ~ {sl:.2f}")
+        tips_list.append(f"Suggested Buy-to-Cover (TP) ~ {tp:.2f}")
+        tips_list.append(f"Suggested Stop-Loss ~ {sl:.2f}")
     else:
-        tips.append("No strong actionable signal.")
+        tips_list.append("No strong actionable signal.")
 
-    return " | ".join(tips)
+    return " | ".join(tips_list)
 
-# ---------------------- Data Processing ----------------------
+# ---------------------- Main analysis function ----------------------
 
 def analyze_ticker(ticker):
-    df = download_data(ticker, start_date, end_date)
-    if df is None or df.empty:
-        return None, None, f"No data for {ticker}"
+    df, error = download_data(ticker, start_date, end_date)
+    if error:
+        return None, None, f"Error downloading {ticker}: {error}"
+
+    # Show raw data for debug (optional)
+    st.write(f"Downloaded data for {ticker} (showing first 5 rows):")
+    st.dataframe(df.head())
 
     # Calculate indicators
     df['SMA20'] = df['Close'].rolling(20).mean()
@@ -146,13 +156,11 @@ def analyze_ticker(ticker):
     df['Support'], df['Resistance'] = support_resistance(df, window=sr_window)
 
     required_cols = ['SMA20', 'SMA50', 'RSI', 'MACD', 'MACD_signal', 'ATR', 'Support', 'Resistance']
-
-    # Re-check existing columns just before dropna
     existing_cols = [col for col in required_cols if col in df.columns]
 
-    if len(existing_cols) < len(required_cols):
-        missing = set(required_cols) - set(existing_cols)
-        return None, None, f"Missing indicator columns: {', '.join(missing)}"
+    missing = set(required_cols) - set(existing_cols)
+    if missing:
+        return None, None, f"Missing indicator columns after calculation: {', '.join(missing)}"
 
     try:
         df.dropna(subset=existing_cols, inplace=True)
@@ -171,49 +179,45 @@ def analyze_ticker(ticker):
 
 # ---------------------- UI ----------------------
 
-ticker_to_analyze = None
 if portfolio_tickers:
-    ticker_to_analyze = st.selectbox("Choose a stock to analyze", options=portfolio_tickers, index=0)
+    ticker_to_analyze = st.selectbox("Choose a stock to analyze", portfolio_tickers)
+else:
+    ticker_to_analyze = None
+    st.info("Please enter tickers in the sidebar.")
 
 if ticker_to_analyze:
-    result = analyze_ticker(ticker_to_analyze)
+    df, latest, error = analyze_ticker(ticker_to_analyze)
 
-    if result is None or len(result) != 3:
-        st.error("Unexpected error: analyze_ticker() did not return valid data.")
+    if error:
+        st.error(error)
     else:
-        df, latest, error = result
-        if error:
-            st.error(error)
-        else:
-            col1, col2, col3, col4, col5 = st.columns(5)
-            col1.metric("Last Close", f"{latest['Close']:.2f}")
-            col2.metric("RSI(14)", f"{latest['RSI']:.2f}")
-            col3.metric("SMA20 / SMA50", f"{latest['SMA20']:.2f} / {latest['SMA50']:.2f}")
-            col4.metric("MACD", f"{latest['MACD']:.2f}")
-            col5.metric("Signal", latest['Signal'])
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.metric("Last Close", f"{latest['Close']:.2f}")
+        col2.metric("RSI(14)", f"{latest['RSI']:.2f}")
+        col3.metric("SMA20 / SMA50", f"{latest['SMA20']:.2f} / {latest['SMA50']:.2f}")
+        col4.metric("MACD", f"{latest['MACD']:.2f}")
+        col5.metric("Signal", latest['Signal'])
 
-            st.markdown(f"**Tips:** {latest['Tips']}")
+        st.markdown(f"**Tips:** {latest['Tips']}")
 
-            # Price + SMA + S/R Chart
-            fig = go.Figure()
-            fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Price'))
-            fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name='SMA20'))
-            fig.add_trace(go.Scatter(x=df.index, y=df['SMA50'], name='SMA50'))
-            fig.add_trace(go.Scatter(x=df.index, y=df['Support'], name='Support', line=dict(color='green', dash='dot')))
-            fig.add_trace(go.Scatter(x=df.index, y=df['Resistance'], name='Resistance', line=dict(color='red', dash='dot')))
-            st.plotly_chart(fig, use_container_width=True)
+        # Price + SMA + S/R Chart
+        fig = go.Figure()
+        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Price'))
+        fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name='SMA20'))
+        fig.add_trace(go.Scatter(x=df.index, y=df['SMA50'], name='SMA50'))
+        fig.add_trace(go.Scatter(x=df.index, y=df['Support'], name='Support', line=dict(color='green', dash='dot')))
+        fig.add_trace(go.Scatter(x=df.index, y=df['Resistance'], name='Resistance', line=dict(color='red', dash='dot')))
+        st.plotly_chart(fig, use_container_width=True)
 
-            # RSI Chart
-            fig_rsi = go.Figure()
-            fig_rsi.add_trace(go.Scatter(x=df.index, y=df['RSI'], name='RSI(14)', line=dict(color='purple')))
-            fig_rsi.add_hline(y=70, line_dash='dot', line_color='red', annotation_text='Overbought (70)')
-            fig_rsi.add_hline(y=30, line_dash='dot', line_color='green', annotation_text='Oversold (30)')
-            st.plotly_chart(fig_rsi, use_container_width=True)
+        # RSI Chart
+        fig_rsi = go.Figure()
+        fig_rsi.add_trace(go.Scatter(x=df.index, y=df['RSI'], name='RSI(14)', line=dict(color='purple')))
+        fig_rsi.add_hline(y=70, line_dash='dot', line_color='red', annotation_text='Overbought (70)')
+        fig_rsi.add_hline(y=30, line_dash='dot', line_color='green', annotation_text='Oversold (30)')
+        st.plotly_chart(fig_rsi, use_container_width=True)
 
-            # MACD Chart
-            fig_macd = go.Figure()
-            fig_macd.add_trace(go.Scatter(x=df.index, y=df['MACD'], name='MACD', line=dict(color='blue')))
-            fig_macd.add_trace(go.Scatter(x=df.index, y=df['MACD_signal'], name='Signal Line', line=dict(color='orange')))
-            st.plotly_chart(fig_macd, use_container_width=True)
-else:
-    st.info("Please enter tickers in the sidebar to analyze.")
+        # MACD Chart
+        fig_macd = go.Figure()
+        fig_macd.add_trace(go.Scatter(x=df.index, y=df['MACD'], name='MACD', line=dict(color='blue')))
+        fig_macd.add_trace(go.Scatter(x=df.index, y=df['MACD_signal'], name='Signal Line', line=dict(color='orange')))
+        st.plotly_chart(fig_macd, use_container_width=True)
