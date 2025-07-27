@@ -18,7 +18,7 @@ end_date = st.sidebar.date_input("End Date", date.today())
 # ---------------------- Helpers ----------------------
 
 # Download data
-@st.cache
+@st.cache_data
 def download_data(ticker, start, end):
     try:
         df = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=True)
@@ -65,34 +65,38 @@ if ticker:
     if error:
         st.error(error)
     else:
-        # Show Metrics
-        col1, col2 = st.columns(2)
-        col1.metric("Last Close", f"{df['Close'].iloc[-1]:.2f}")
-        col2.metric("RSI(14)", f"{df['RSI'].iloc[-1]:.2f}")
+        # Check if the DataFrame is empty before trying to access the last row
+        if not df.empty:
+            # Show Metrics
+            col1, col2 = st.columns(2)
+            col1.metric("Last Close", f"{df['Close'].iloc[-1]:.2f}")
+            col2.metric("RSI(14)", f"{df['RSI'].iloc[-1]:.2f}")
 
-        # Plot Candlestick chart with SMA
-        fig = go.Figure()
-        fig.add_trace(go.Candlestick(
-            x=df.index,
-            open=df['Open'],
-            high=df['High'],
-            low=df['Low'],
-            close=df['Close'],
-            name="Candlestick"
-        ))
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df['SMA20'], mode='lines', name='SMA20', line=dict(color='blue'))
-        )
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df['SMA50'], mode='lines', name='SMA50', line=dict(color='orange'))
-        )
-        st.plotly_chart(fig, use_container_width=True)
+            # Plot Candlestick chart with SMA
+            fig = go.Figure()
+            fig.add_trace(go.Candlestick(
+                x=df.index,
+                open=df['Open'],
+                high=df['High'],
+                low=df['Low'],
+                close=df['Close'],
+                name="Candlestick"
+            ))
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df['SMA20'], mode='lines', name='SMA20', line=dict(color='blue'))
+            )
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df['SMA50'], mode='lines', name='SMA50', line=dict(color='orange'))
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-        # Plot RSI chart
-        fig_rsi = go.Figure()
-        fig_rsi.add_trace(go.Scatter(
-            x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='purple'))
-        )
-        fig_rsi.add_hline(y=70, line_dash='dot', line_color='red', annotation_text='Overbought (70)')
-        fig_rsi.add_hline(y=30, line_dash='dot', line_color='green', annotation_text='Oversold (30)')
-        st.plotly_chart(fig_rsi, use_container_width=True)
+            # Plot RSI chart
+            fig_rsi = go.Figure()
+            fig_rsi.add_trace(go.Scatter(
+                x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='purple'))
+            )
+            fig_rsi.add_hline(y=70, line_dash='dot', line_color='red', annotation_text='Overbought (70)')
+            fig_rsi.add_hline(y=30, line_dash='dot', line_color='green', annotation_text='Oversold (30)')
+            st.plotly_chart(fig_rsi, use_container_width=True)
+        else:
+            st.error("No data available to display.")
