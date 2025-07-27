@@ -66,7 +66,7 @@ if ticker:
         st.error(error)
     else:
         # Check if the DataFrame is empty before trying to access the last row
-        if not df.empty:
+        if df is not None and not df.empty:
             # Show Metrics
             col1, col2 = st.columns(2)
             col1.metric("Last Close", f"{df['Close'].iloc[-1]:.2f}")
@@ -99,4 +99,4 @@ if ticker:
             fig_rsi.add_hline(y=30, line_dash='dot', line_color='green', annotation_text='Oversold (30)')
             st.plotly_chart(fig_rsi, use_container_width=True)
         else:
-            st.error("No data available to display.")
+            st.error("The data could not be loaded or is empty. Please check the ticker symbol and date range.")
