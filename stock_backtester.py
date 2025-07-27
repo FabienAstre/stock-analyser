@@ -5,85 +5,90 @@ from agno.storage.agent.sqlite import SqliteAgentStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
 
-# Initialize the Web Agent (DuckDuckGo for searching the web)
+# Setup Web Agent (DuckDuckGo for web searches)
 web_agent = Agent(
-    name="Web Agent",
+    name="Web Search Agent",
     role="Search the web for information",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGoTools()],
-    storage=SqliteAgentStorage(table_name="web_agent", db_file="agents.db"),
+    storage=SqliteAgentStorage(table_name="web_agent_data", db_file="agents.db"),
     add_history_to_messages=True,
     markdown=True,
 )
 
-# Initialize the Finance Agent (Yahoo Finance for financial data)
+# Setup Finance Agent (Yahoo Finance for financial data)
 finance_agent = Agent(
     name="Finance Agent",
-    role="Get financial data",
+    role="Retrieve financial data for stock analysis",
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
-    instructions=["Always use tables to display data"],
-    storage=SqliteAgentStorage(table_name="finance_agent", db_file="agents.db"),
+    instructions=["Always use tables to display stock data clearly."],
+    storage=SqliteAgentStorage(table_name="finance_agent_data", db_file="agents.db"),
     add_history_to_messages=True,
     markdown=True,
 )
 
-# Streamlit Interface for User Input and Display
-st.title("Web and Finance Agent App")
+# Streamlit App Interface
+st.title("Web and Finance Agent Dashboard")
 st.markdown("""
-    This app allows you to search the web and analyze financial data using AI agents.
-    You can ask questions or get stock market data.
+    **Welcome to the Web and Finance Agent Dashboard**!  
+    Here, you can use two AI agents to interact with both **financial data** and **web searches**:
+    - **Web Agent**: Search the web for any information you need.
+    - **Finance Agent**: Get real-time stock market data like stock prices, company info, and news.
 """)
 
-# User Input: Question or Stock Symbol
-user_input = st.text_input("Ask a question or enter a stock symbol (e.g., AAPL):")
+# User Input: Ask a question or provide a stock symbol
+user_input = st.text_input("Enter your query or a stock symbol (e.g., AAPL for Apple):")
 
-# Check if the user input is a stock symbol or a general query
+# Handling User Input: Search Web or Fetch Stock Data
 if user_input:
-    if user_input.isalpha():  # If it's a stock symbol (assuming alphabetic symbols for simplicity)
-        # Run the Finance Agent to get stock info
-        with st.spinner("Fetching stock data..."):
+    # If it's a stock symbol, fetch financial data
+    if user_input.isalpha():  # Check if it's likely a stock symbol (alphabetic)
+        with st.spinner(f"Fetching stock data for {user_input}..."):
             try:
                 finance_response = finance_agent.run(user_input)
                 st.write(finance_response)
             except Exception as e:
-                st.error(f"An error occurred while fetching stock data: {e}")
+                st.error(f"Failed to retrieve stock data: {e}")
     else:
-        # Run the Web Agent to get general information from the web
-        with st.spinner("Searching the web..."):
+        # Otherwise, search the web for the query
+        with st.spinner(f"Searching the web for '{user_input}'..."):
             try:
                 web_response = web_agent.run(user_input)
                 st.write(web_response)
             except Exception as e:
-                st.error(f"An error occurred while searching the web: {e}")
+                st.error(f"Error searching the web: {e}")
 
-# Display the agents' outputs for specific buttons
-if st.button("Run Web Agent for Stock News"):
+# Buttons for fetching specific data or news
+if st.button("Fetch Stock News"):
     stock_symbol = st.text_input("Enter Stock Symbol (e.g., AAPL):")
     if stock_symbol:
-        with st.spinner(f"Fetching {stock_symbol} news..."):
+        with st.spinner(f"Fetching latest news for {stock_symbol}..."):
             try:
-                response = web_agent.run(f"{stock_symbol} stock news")
-                st.write(response)
+                news_response = web_agent.run(f"{stock_symbol} stock news")
+                st.write(news_response)
             except Exception as e:
-                st.error(f"An error occurred while fetching news: {e}")
+                st.error(f"Error fetching stock news: {e}")
 
-if st.button("Run Finance Agent for Stock Information"):
+if st.button("Get Stock Information"):
     stock_symbol = st.text_input("Enter Stock Symbol (e.g., AAPL):")
     if stock_symbol:
-        with st.spinner(f"Fetching {stock_symbol} information..."):
+        with st.spinner(f"Fetching stock details for {stock_symbol}..."):
             try:
-                response = finance_agent.run(stock_symbol)
-                st.write(response)
+                stock_response = finance_agent.run(stock_symbol)
+                st.write(stock_response)
             except Exception as e:
-                st.error(f"An error occurred while fetching stock info: {e}")
+                st.error(f"Error fetching stock info: {e}")
 
-# Optional: Add a markdown section explaining what each agent does
+# Informational Section on Agents
 st.markdown("""
-### Web Agent (DuckDuckGo)
-The Web Agent searches the web for information based on the query you provide. You can use it to ask about general topics, companies, or any specific information.
+### How It Works:
+- **Web Agent**: Uses DuckDuckGo to search for information based on your queries. It's perfect for general knowledge, product info, or even company details.
+- **Finance Agent**: Fetches financial data from Yahoo Finance. You can enter stock symbols (like `AAPL`) to get real-time stock prices, market news, and analyst recommendations.
 
-### Finance Agent (Yahoo Finance)
-The Finance Agent retrieves detailed stock market data such as stock prices, company info, recommendations, and the latest news. You can ask for any publicly traded company's stock data by providing the stock symbol (e.g., `AAPL` for Apple).
+### Example Queries:
+- "What is the latest news on Tesla?"
+- "Stock price of Apple (AAPL)"
+- "How is Microsoft doing in the market?"
+
 """)
-
