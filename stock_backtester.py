@@ -148,7 +148,14 @@ def analyze_ticker(ticker):
     df['ATR'] = atr(df)
     df['Support'], df['Resistance'] = support_resistance(df, window=sr_window)
 
-    df.dropna(subset=['SMA20', 'SMA50', 'RSI', 'MACD', 'MACD_signal', 'ATR', 'Support', 'Resistance'], inplace=True)
+required_cols = ['SMA20', 'SMA50', 'RSI', 'MACD', 'MACD_signal', 'ATR', 'Support', 'Resistance']
+existing_cols = [col for col in required_cols if col in df.columns]
+
+if len(existing_cols) < len(required_cols):
+    missing = set(required_cols) - set(existing_cols)
+    return None, None, f"Missing indicator columns: {', '.join(missing)}"
+
+df.dropna(subset=existing_cols, inplace=True)
     if df.empty:
         return None, None, f"Not enough data to calculate indicators for {ticker}"
 
