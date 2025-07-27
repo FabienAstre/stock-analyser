@@ -24,7 +24,6 @@ YF_MAP = {sym: sym for sym in TICKERS}
 
 # ---------------------------- HELPERS ----------------------------
 def rsi(series: pd.Series, period: int = 14) -> pd.Series:
-    # Force 1D Series
     if isinstance(series, pd.DataFrame):
         series = series.iloc[:, 0]
     series = pd.Series(series).astype(float)
@@ -129,16 +128,16 @@ def fetch_and_analyze(ticker, start, end, window_sr=20):
     if df.empty:
         return None, f"No data for {ticker} (mapped to {yf_ticker})"
 
+    # Flatten multi-index columns if needed
     if isinstance(df.columns, pd.MultiIndex):
-        df.columns = [' '.join(col).strip() for col in df.columns.values]
+        df.columns = ['_'.join([str(c) for c in col if c]).strip() for col in df.columns.values]
 
-    close = df.get('Close')
-    if close is None:
+    # Find any Close column
+    close_cols = [c for c in df.columns if 'Close' in c]
+    if not close_cols:
         return None, f"'Close' column missing for {ticker} (mapped to {yf_ticker})"
-
-    if isinstance(close, pd.DataFrame):
-        close = close.iloc[:, 0]
-    df['Close'] = close.astype(float)
+    close = df[close_cols[0]].astype(float)
+    df['Close'] = close
 
     df['SMA20'] = df['Close'].rolling(20).mean()
     df['SMA50'] = df['Close'].rolling(50).mean()
