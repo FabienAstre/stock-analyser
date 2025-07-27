@@ -1,10 +1,8 @@
 import streamlit as st
 import yfinance as yf
-import requests
-from textblob import TextBlob
-import pandas as pd
 import plotly.graph_objects as go
 from datetime import date, timedelta
+import pandas as pd
 
 # ---------------------- Sidebar ----------------------
 st.sidebar.header("Stock Selection")
@@ -12,22 +10,26 @@ ticker = st.sidebar.text_input("Enter Stock Ticker (e.g., AAPL)", value="AAPL").
 start_date = st.sidebar.date_input("Start Date", date.today() - timedelta(days=365))
 end_date = st.sidebar.date_input("End Date", date.today())
 
-# ---------------------- News Fetching Function ----------------------
-def get_stock_news(ticker):
-    api_key = 'YOUR_NEWSAPI_KEY'  # Replace with your NewsAPI key
-    url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={api_key}"
-    response = requests.get(url)
-    news_data = response.json()
-    return news_data['articles']
+# ---------------------- Technical Indicator Functions ----------------------
+def rsi(series, period=14):
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    gain_ema = gain.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    loss_ema = loss.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    rs = gain_ema / loss_ema.replace(0, pd.NA)
+    rsi_val = 100 - (100 / (1 + rs))
+    return rsi_val
 
-# ---------------------- Sentiment Analysis ----------------------
-def analyze_sentiment(news_articles):
-    sentiments = []
-    for article in news_articles:
-        text = article['title'] + ' ' + article['description']
-        sentiment = TextBlob(text).sentiment.polarity  # Get sentiment polarity
-        sentiments.append(sentiment)
-    return sum(sentiments) / len(sentiments) if sentiments else 0
+def macd(series, fast=12, slow=26, signal=9):
+    exp1 = series.ewm(span=fast, adjust=False).mean()
+    exp2 = series.ewm(span=slow, adjust=False).mean()
+    macd_line = exp1 - exp2
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    return macd_line, signal_line
+
+def sma(series, window=20):
+    return series.rolling(window=window).mean()
 
 # ---------------------- Stock Data Fetching ----------------------
 @st.cache_data
@@ -46,14 +48,16 @@ if ticker:
     if error:
         st.error(error)
     else:
-        # Get News Data
-        news = get_stock_news(ticker)
-        sentiment_score = analyze_sentiment(news)
-        
-        # Show News Sentiment
-        st.write(f"**News Sentiment for {ticker}:** {'Positive' if sentiment_score > 0 else 'Negative' if sentiment_score < 0 else 'Neutral'} (Sentiment Score: {sentiment_score:.2f})")
-        
+        # Calculate Indicators
+        df['SMA20'] = sma(df['Close'], 20)
+        df['SMA50'] = sma(df['Close'], 50)
+        df['RSI'] = rsi(df['Close'])
+        df['MACD'], df['MACD_signal'] = macd(df['Close'])
+
         # Plot Stock Data
+        st.subheader(f"{ticker} Stock Analysis")
+
+        # Candlestick chart
         fig = go.Figure()
         fig.add_trace(go.Candlestick(
             x=df.index,
@@ -63,10 +67,19 @@ if ticker:
             close=df['Close'],
             name="Candlestick"
         ))
+        fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], name='SMA20', line=dict(color='blue')))
+        fig.add_trace(go.Scatter(x=df.index, y=df['SMA50'], name='SMA50', line=dict(color='red')))
         st.plotly_chart(fig, use_container_width=True)
-        
-        # AI-based Analysis (Simple Example)
-        if sentiment_score > 0:
-            st.write("AI-based Prediction: **Bullish** - Stock might go up based on positive sentiment!")
-        else:
-            st.write("AI-based Prediction: **Bearish** - Stock might go down based on negative sentiment.")
+
+        # RSI Chart
+        fig_rsi = go.Figure()
+        fig_rsi.add_trace(go.Scatter(x=df.index, y=df['RSI'], name='RSI(14)', line=dict(color='purple')))
+        fig_rsi.add_hline(y=70, line_dash='dot', line_color='red', annotation_text='Overbought (70)')
+        fig_rsi.add_hline(y=30, line_dash='dot', line_color='green', annotation_text='Oversold (30)')
+        st.plotly_chart(fig_rsi, use_container_width=True)
+
+        # MACD Chart
+        fig_macd = go.Figure()
+        fig_macd.add_trace(go.Scatter(x=df.index, y=df['MACD'], name='MACD', line=dict(color='blue')))
+        fig_macd.add_trace(go.Scatter(x=df.index, y=df['MACD_signal'], name='Signal Line', line=dict(color='orange')))
+        st.plotly_chart(fig_macd, use_container_width=True)
