@@ -64,6 +64,9 @@ if ticker:
         df['RSI'] = rsi(df['Close'])
         df['MACD'], df['MACD_signal'] = macd(df['Close'])
 
+        # Remove rows with NaN values in SMA, RSI, MACD columns
+        df = df.dropna(subset=['SMA20', 'RSI', 'MACD', 'MACD_signal'])
+
         # Generate Buy/Sell Signals
         buy_signal, sell_signal = generate_signals(df)
         df['Buy_Signal'] = buy_signal
@@ -139,4 +142,3 @@ if ticker:
             - **Buy Signal**: When RSI < 30, MACD crosses above the Signal Line, and the price is above SMA20.
             - **Sell Signal**: When RSI > 70, MACD crosses below the Signal Line, and the price is below SMA20.
         """)
-
