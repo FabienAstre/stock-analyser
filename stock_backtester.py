@@ -94,8 +94,15 @@ def analyze_ticker(ticker):
     df['MACD'], df['MACD_signal'] = macd(df['Close'])
     df['Support'], df['Resistance'] = support_resistance(df, window=sr_window)
 
-    # Drop NaN values
-    df = df.dropna(subset=['SMA20', 'SMA50', 'RSI', 'MACD', 'MACD_signal', 'Support', 'Resistance'])
+    # Ensure required columns exist before dropping NaNs
+    required_columns = ['SMA20', 'SMA50', 'RSI', 'MACD', 'MACD_signal', 'Support', 'Resistance']
+    
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        return None, f"Missing columns: {', '.join(missing_columns)}"
+
+    # Drop NaN values only if all required columns exist
+    df = df.dropna(subset=required_columns)
     
     if df.empty:
         return None, f"Not enough data after cleaning for {ticker}"
