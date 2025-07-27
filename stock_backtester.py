@@ -145,6 +145,10 @@ def analyze_ticker(ticker):
     if len(df) < 60:
         return None, None, f"Not enough data to analyze {ticker} (need at least 60 rows)."
 
+    # Calculate indicators only if enough data is available
+    if len(df) < 50:
+        return None, None, f"Not enough data to calculate the indicators (need at least 50 rows for SMA50)."
+
     # Calculate indicators
     df['SMA20'] = df['Close'].rolling(20).mean()
     df['SMA50'] = df['Close'].rolling(50).mean()
@@ -156,15 +160,18 @@ def analyze_ticker(ticker):
     df['ATR'] = atr(df)
     df['Support'], df['Resistance'] = support_resistance(df, window=sr_window)
 
+    # Debugging: Check if all required columns exist
     required_cols = ['SMA20', 'SMA50', 'RSI', 'MACD', 'MACD_signal', 'ATR', 'Support', 'Resistance']
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
-        return None, None, f"Missing indicator columns after calculation: {missing_cols}"
+        return None, None, f"Missing indicator columns: {missing_cols}"
 
+    # Drop rows with NaNs in essential columns
     df = df.dropna(subset=required_cols)
     if df.empty:
         return None, None, f"Not enough data after dropping NaNs for {ticker}"
 
+    # Get latest data and generate signals/tips
     latest = df.iloc[-1].copy()
     latest['Signal'] = generate_signal(latest)
     latest['Tips'] = tips(latest)
