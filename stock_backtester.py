@@ -1,34 +1,40 @@
-import streamlit as st
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
+from agno.storage.agent.sqlite import SqliteAgentStorage
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
+from agno.playground import Playground, serve_playground_app
 
-st.title("AI Investment Agent 📈🤖")
-st.caption("This app allows you to compare the performance of two stocks and generate detailed reports.")
+web_agent = Agent(
+    name="Web Agent",
+    role="Search the web for information",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGoTools()],
+    storage=SqliteAgentStorage(table_name="web_agent", db_file="agents.db"),
+    add_history_to_messages=True,
+    markdown=True,
+)
 
-openai_api_key = st.text_input("OpenAI API Key", type="password")
+finance_agent = Agent(
+    name="Finance Agent",
+    role="Get financial data",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
+    instructions=["Always use tables to display data"],
+    storage=SqliteAgentStorage(table_name="finance_agent", db_file="agents.db"),
+    add_history_to_messages=True,
+    markdown=True,
+)
 
-if openai_api_key:
-    assistant = Agent(
-        model=OpenAIChat(id="gpt-4o", api_key=openai_api_key),
-        tools=[
-            YFinanceTools(stock_price=True, analyst_recommendations=True, stock_fundamentals=True)
-        ],
-        show_tool_calls=True,
-        description="You are an investment analyst that researches stock prices, analyst recommendations, and stock fundamentals.",
-        instructions=[
-            "Format your response using markdown and use tables to display data where possible."
-        ],
-    )
+agent_team = Agent(
+    team=[web_agent, finance_agent],
+    name="Agent Team (Web+Finance)",
+    model=OpenAIChat(id="gpt-4o"),
+    show_tool_calls=True,
+    markdown=True,
+)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        stock1 = st.text_input("Enter first stock symbol (e.g. AAPL)")
-    with col2:
-        stock2 = st.text_input("Enter second stock symbol (e.g. MSFT)")
+app = Playground(agents=[agent_team]).get_app()
 
-    if stock1 and stock2:
-        with st.spinner(f"Analyzing {stock1} and {stock2}..."):
-            query = f"Compare both the stocks - {stock1} and {stock2} and make a detailed report for an investment trying to invest and compare these stocks"
-            response = assistant.run(query, stream=False)
-            st.markdown(response.content)
+if __name__ == "__main__":
+    serve_playground_app("finance_agent_team:app", reload=True)
