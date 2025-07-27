@@ -1,99 +1,68 @@
 import streamlit as st
 import pandas as pd
-import yfinance as yf
-import plotly.graph_objects as go
-import numpy as np
+import plotly.express as px
 
-st.set_page_config(page_title="📈 Stock Pattern & Backtesting App", layout="wide")
+# --- Page Configuration ---
+st.set_page_config(page_title="📊 My Stock Portfolio Tracker", page_icon="💹", layout="wide")
 
-st.title("📈 Stock Pattern & Backtesting App")
-st.write("Analyze historical stock patterns and backtest trading strategies.")
+st.title("📊 My Stock Portfolio Tracker")
+st.write("Track your portfolio value, daily changes, and all-time returns with interactive charts.")
 
-# --- Sidebar Inputs ---
-st.sidebar.header("Settings")
-ticker = st.sidebar.text_input("Enter Stock Ticker (e.g., AAPL, TSLA):", "AAPL")
-start_date = st.sidebar.date_input("Start Date", pd.to_datetime("2020-01-01"))
-end_date = st.sidebar.date_input("End Date", pd.to_datetime("today"))
+# --- Portfolio Data ---
+portfolio_data = [
+    {"Symbol": "AAPL", "Company": "Apple CDR (CAD Hedged)", "Total Value": 631.96, "Shares": 20.432, "Price": 30.93, "Daily Change %": -0.10, "All Time Return": -23.12, "All Time %": -3.53},
+    {"Symbol": "ABCL", "Company": "AbCellera Biologics Inc", "Total Value": 339.21, "Shares": 66.2519, "Price": 5.12, "Daily Change %": 1.99, "All Time Return": 88.51, "All Time %": 35.31},
+    {"Symbol": "AEHR", "Company": "Aehr Test Systems", "Total Value": 434.80, "Shares": 20, "Price": 21.74, "Daily Change %": 1.97, "All Time Return": 230.55, "All Time %": 112.87},
+    {"Symbol": "AI", "Company": "C3.ai Inc (Class A)", "Total Value": 391.35, "Shares": 15, "Price": 26.09, "Daily Change %": 0.37, "All Time Return": -129.60, "All Time %": -24.88},
+    {"Symbol": "AMZN", "Company": "Amazon.com CDR (CAD Hedged)", "Total Value": 1629.00, "Shares": 60, "Price": 27.15, "Daily Change %": -0.55, "All Time Return": 832.10, "All Time %": 104.42},
+    {"Symbol": "BAM", "Company": "Brookfield Asset Management Ltd", "Total Value": 439.48, "Shares": 5.0877, "Price": 86.38, "Daily Change %": 0.23, "All Time Return": 57.44, "All Time %": 15.03},
+    {"Symbol": "BRK", "Company": "Berkshire Hathaway CDR", "Total Value": 924.76, "Shares": 25.6879, "Price": 36.00, "Daily Change %": 0.70, "All Time Return": 79.41, "All Time %": 9.39},
+    {"Symbol": "CGL", "Company": "iShares Gold Bullion ETF CAD-Hedged", "Total Value": 1323.57, "Shares": 50.9064, "Price": 26.00, "Daily Change %": -0.88, "All Time Return": 193.95, "All Time %": 17.17},
+    {"Symbol": "CRCL", "Company": "Circle Internet Group Inc.", "Total Value": 961.50, "Shares": 5, "Price": 192.30, "Daily Change %": -0.36, "All Time Return": 402.29, "All Time %": 71.94},
+    {"Symbol": "CRWV", "Company": "CoreWeave Inc.", "Total Value": 230.48, "Shares": 2, "Price": 115.24, "Daily Change %": -3.97, "All Time Return": -130.09, "All Time %": -36.08},
+    {"Symbol": "CU", "Company": "Canadian Utilities Ltd. (Class A)", "Total Value": 1261.35, "Shares": 32.4755, "Price": 38.84, "Daily Change %": -0.31, "All Time Return": 168.11, "All Time %": 15.38},
+    {"Symbol": "DCBO", "Company": "Docebo Inc", "Total Value": 301.84, "Shares": 7, "Price": 43.12, "Daily Change %": 0.79, "All Time Return": -194.11, "All Time %": -39.14},
+    {"Symbol": "DRUG", "Company": "Bright Minds Biosciences Inc.", "Total Value": 481.00, "Shares": 10, "Price": 48.10, "Daily Change %": 9.05, "All Time Return": 96.30, "All Time %": 25.03},
+    {"Symbol": "ENB", "Company": "Enbridge Inc", "Total Value": 666.92, "Shares": 10.8143, "Price": 61.67, "Daily Change %": -0.58, "All Time Return": 138.27, "All Time %": 26.15},
+    {"Symbol": "GSI", "Company": "Gatekeeper Systems Inc.", "Total Value": 405.00, "Shares": 300, "Price": 1.35, "Daily Change %": 0.00, "All Time Return": 107.00, "All Time %": 35.91},
+    {"Symbol": "ISRG", "Company": "Intuitive Surgical CDR", "Total Value": 356.07, "Shares": 13.4774, "Price": 26.42, "Daily Change %": 1.50, "All Time Return": -32.03, "All Time %": -8.25},
+    {"Symbol": "JOBY", "Company": "Joby Aviation Inc", "Total Value": 800.10, "Shares": 44.2777, "Price": 18.07, "Daily Change %": 3.23, "All Time Return": 312.79, "All Time %": 64.19},
+    {"Symbol": "NVDA", "Company": "Nvidia CDR", "Total Value": 2989.06, "Shares": 75.0265, "Price": 39.84, "Daily Change %": -0.08, "All Time Return": 2262.98, "All Time %": 311.67},
+    {"Symbol": "MSFT", "Company": "Microsoft CDR", "Total Value": 1848.99, "Shares": 49.9998, "Price": 36.98, "Daily Change %": 0.41, "All Time Return": 544.64, "All Time %": 41.76},
+    {"Symbol": "META", "Company": "Meta CDR", "Total Value": 1055.04, "Shares": 27.0523, "Price": 39.00, "Daily Change %": -0.38, "All Time Return": 140.05, "All Time %": 15.31},
+    # Add remaining items similarly...
+]
 
-# --- Fetch Data ---
-@st.cache_data
-def load_data(ticker, start, end):
-    data = yf.download(ticker, start=start, end=end)
-    data = data[['Open', 'High', 'Low', 'Close', 'Volume']]
-    data.dropna(inplace=True)
-    return data
+portfolio_df = pd.DataFrame(portfolio_data)
 
-data = load_data(ticker, start_date, end_date)
+# --- Metrics ---
+total_value = portfolio_df["Total Value"].sum()
+total_return = portfolio_df["All Time Return"].sum()
+total_pct = (total_return / (total_value - total_return)) * 100 if total_value - total_return != 0 else 0
 
-st.subheader(f"Stock Data for {ticker}")
-st.dataframe(data.tail(10))
+st.metric("Total Portfolio Value", f"${total_value:,.2f}", f"{total_return:+,.2f} ({total_pct:+.2f}%)")
 
-# --- Plot Price Chart ---
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
-fig.update_layout(title=f"{ticker} Price Chart", xaxis_title="Date", yaxis_title="Price ($)")
-st.plotly_chart(fig, use_container_width=True)
+# --- Display Data ---
+st.subheader("Portfolio Details")
+st.dataframe(portfolio_df, use_container_width=True)
 
-# --- Strategy: SMA Crossover ---
-st.sidebar.header("Strategy Parameters")
-short_window = st.sidebar.slider("Short SMA Window", 5, 50, 20)
-long_window = st.sidebar.slider("Long SMA Window", 20, 200, 50)
+# --- Charts ---
+col1, col2 = st.columns(2)
 
-data['SMA_Short'] = data['Close'].rolling(window=short_window).mean()
-data['SMA_Long'] = data['Close'].rolling(window=long_window).mean()
+with col1:
+    fig_pie = px.pie(portfolio_df, values='Total Value', names='Symbol', title='Portfolio Allocation')
+    st.plotly_chart(fig_pie, use_container_width=True)
 
-# Generate buy/sell signals with correct .loc assignment
-data['Signal'] = 0
-mask = data.index[short_window:]
-data.loc[mask, 'Signal'] = np.where(
-    data.loc[mask, 'SMA_Short'] > data.loc[mask, 'SMA_Long'], 1, 0
+with col2:
+    fig_bar = px.bar(portfolio_df, x='Symbol', y='All Time Return', color='All Time Return',
+                     title='All-Time Gains/Losses', text_auto=True)
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+# --- Daily Change Chart ---
+st.subheader("Daily Performance (Top Movers)")
+fig_change = px.bar(
+    portfolio_df.sort_values(by='Daily Change %', ascending=False),
+    x='Symbol', y='Daily Change %', color='Daily Change %', text='Daily Change %',
+    title='Daily % Change'
 )
-data['Position'] = data['Signal'].diff()
-
-# Plot SMA Crossover
-fig_sma = go.Figure()
-fig_sma.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close'))
-fig_sma.add_trace(go.Scatter(x=data.index, y=data['SMA_Short'], mode='lines', name=f'SMA {short_window}'))
-fig_sma.add_trace(go.Scatter(x=data.index, y=data['SMA_Long'], mode='lines', name=f'SMA {long_window}'))
-
-# Add buy/sell markers
-buy_signals = data[data['Position'] == 1]
-sell_signals = data[data['Position'] == -1]
-fig_sma.add_trace(go.Scatter(
-    x=buy_signals.index, y=buy_signals['Close'],
-    mode='markers', marker=dict(symbol='triangle-up', size=10, color='green'),
-    name='Buy Signal'
-))
-fig_sma.add_trace(go.Scatter(
-    x=sell_signals.index, y=sell_signals['Close'],
-    mode='markers', marker=dict(symbol='triangle-down', size=10, color='red'),
-    name='Sell Signal'
-))
-
-fig_sma.update_layout(title=f"SMA Crossover Strategy for {ticker}", xaxis_title="Date", yaxis_title="Price")
-st.plotly_chart(fig_sma, use_container_width=True)
-
-# --- Backtest ---
-initial_capital = 10000
-positions = pd.DataFrame(index=data.index)
-positions['Position'] = data['Signal'].fillna(0) * (initial_capital / data['Close'].iloc[0])
-positions['Position'] = positions['Position'].fillna(0)
-
-portfolio = pd.DataFrame(index=data.index)
-portfolio['Holdings'] = positions['Position'].reindex(data.index).fillna(0) * data['Close'].reindex(data.index).fillna(0)
-
-trade_values = positions['Position'].diff().fillna(0) * data['Close'].fillna(0)
-portfolio['Cash'] = initial_capital - trade_values.cumsum()
-
-portfolio['Total'] = portfolio['Holdings'] + portfolio['Cash']
-
-# --- Plot Portfolio Value ---
-st.subheader("Backtest Portfolio Value")
-fig_port = go.Figure()
-fig_port.add_trace(go.Scatter(x=portfolio.index, y=portfolio['Total'], mode='lines', name='Portfolio Value'))
-fig_port.update_layout(title="Portfolio Performance", xaxis_title="Date", yaxis_title="Value ($)")
-st.plotly_chart(fig_port, use_container_width=True)
-
-final_value = portfolio['Total'].iloc[-1]
-profit = final_value - initial_capital
-st.metric("Final Portfolio Value", f"${final_value:,.2f}", f"{profit:+,.2f}")
+st.plotly_chart(fig_change, use_container_width=True)
