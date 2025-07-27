@@ -7,7 +7,6 @@ from datetime import date, timedelta
 
 # ---------------------- Config ----------------------
 st.set_page_config(page_title="📊 Comprehensive Stock Analysis", layout="wide")
-
 st.title("📊 Comprehensive Stock Analysis Tool")
 st.caption("Analyze any stock symbol with multiple indicators and signals")
 
@@ -37,10 +36,8 @@ def rsi(series, period=14):
     delta = series.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
-
     gain_ema = gain.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
     loss_ema = loss.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
-
     rs = gain_ema / loss_ema.replace(0, np.nan)
     rsi_val = 100 - (100 / (1 + rs))
     return rsi_val.clip(0, 100)
@@ -149,13 +146,20 @@ def analyze_ticker(ticker):
     df['Support'], df['Resistance'] = support_resistance(df, window=sr_window)
 
     required_cols = ['SMA20', 'SMA50', 'RSI', 'MACD', 'MACD_signal', 'ATR', 'Support', 'Resistance']
+
+    # Re-check existing columns just before dropna
     existing_cols = [col for col in required_cols if col in df.columns]
 
     if len(existing_cols) < len(required_cols):
         missing = set(required_cols) - set(existing_cols)
         return None, None, f"Missing indicator columns: {', '.join(missing)}"
 
-    df.dropna(subset=existing_cols, inplace=True)
+    try:
+        df.dropna(subset=existing_cols, inplace=True)
+    except KeyError as e:
+        missing_cols = list(set(existing_cols) - set(df.columns))
+        return None, None, f"Error dropping NaNs — missing columns: {missing_cols}"
+
     if df.empty:
         return None, None, f"Not enough data to calculate indicators for {ticker}"
 
