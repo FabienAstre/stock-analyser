@@ -5,9 +5,9 @@ import plotly.graph_objects as go
 from datetime import date, timedelta
 
 # ---------------------- Config ----------------------
-st.set_page_config(page_title="📊 Simple Stock Analysis", layout="wide")
-st.title("📊 Simple Stock Analysis")
-st.caption("A basic stock analysis tool with SMA and RSI indicators.")
+st.set_page_config(page_title="📊 Interactive Stock Analysis", layout="wide")
+st.title("📊 Interactive Stock Analysis")
+st.caption("A basic stock analysis tool with toggleable SMA and RSI indicators.")
 
 # ---------------------- Sidebar ----------------------
 st.sidebar.header("Stock Selection")
@@ -49,41 +49,49 @@ if ticker:
         rs = avg_gain / avg_loss.replace(0, pd.NA)
         df['RSI'] = 100 - (100 / (1 + rs))
 
+        # ---------------------- Interactive Sidebar ----------------------
+        show_candlestick = st.sidebar.checkbox('Show Candlestick Chart', value=True)
+        show_sma = st.sidebar.checkbox('Show SMA (20 & 50)', value=True)
+        show_rsi = st.sidebar.checkbox('Show RSI (14)', value=True)
+
         # ---------------------- Chart: Candlestick with SMAs ----------------------
-        fig = go.Figure()
+        if show_candlestick:
+            fig = go.Figure()
 
-        # Candlestick trace
-        fig.add_trace(go.Candlestick(
-            x=df.index,
-            open=df['Open'],
-            high=df['High'],
-            low=df['Low'],
-            close=df['Close'],
-            name="Candlestick"
-        ))
+            # Candlestick trace
+            fig.add_trace(go.Candlestick(
+                x=df.index,
+                open=df['Open'],
+                high=df['High'],
+                low=df['Low'],
+                close=df['Close'],
+                name="Candlestick"
+            ))
 
-        # SMA20 trace
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df['SMA20'], mode='lines', name='SMA20', line=dict(color='blue'))
-        )
+            if show_sma:
+                # SMA20 trace
+                fig.add_trace(go.Scatter(
+                    x=df.index, y=df['SMA20'], mode='lines', name='SMA20', line=dict(color='blue'))
+                )
 
-        # SMA50 trace
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df['SMA50'], mode='lines', name='SMA50', line=dict(color='orange'))
-        )
+                # SMA50 trace
+                fig.add_trace(go.Scatter(
+                    x=df.index, y=df['SMA50'], mode='lines', name='SMA50', line=dict(color='orange'))
+                )
 
-        st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True)
 
         # ---------------------- RSI Chart ----------------------
-        fig_rsi = go.Figure()
+        if show_rsi:
+            fig_rsi = go.Figure()
 
-        # RSI trace
-        fig_rsi.add_trace(go.Scatter(
-            x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='purple'))
-        )
+            # RSI trace
+            fig_rsi.add_trace(go.Scatter(
+                x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='purple'))
+            )
 
-        # Overbought and Oversold lines
-        fig_rsi.add_hline(y=70, line_dash='dot', line_color='red', annotation_text='Overbought (70)')
-        fig_rsi.add_hline(y=30, line_dash='dot', line_color='green', annotation_text='Oversold (30)')
+            # Overbought and Oversold lines
+            fig_rsi.add_hline(y=70, line_dash='dot', line_color='red', annotation_text='Overbought (70)')
+            fig_rsi.add_hline(y=30, line_dash='dot', line_color='green', annotation_text='Oversold (30)')
 
-        st.plotly_chart(fig_rsi, use_container_width=True)
+            st.plotly_chart(fig_rsi, use_container_width=True)
