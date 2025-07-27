@@ -42,10 +42,11 @@ long_window = st.sidebar.slider("Long SMA Window", 20, 200, 50)
 data['SMA_Short'] = data['Close'].rolling(window=short_window).mean()
 data['SMA_Long'] = data['Close'].rolling(window=long_window).mean()
 
-# Generate buy/sell signals
+# Generate buy/sell signals with corrected assignment
 data['Signal'] = 0
-data['Signal'][short_window:] = np.where(
-    data['SMA_Short'][short_window:] > data['SMA_Long'][short_window:], 1, 0
+mask = data.index[short_window:]
+data.loc[mask, 'Signal'] = np.where(
+    data.loc[mask, 'SMA_Short'] > data.loc[mask, 'SMA_Long'], 1, 0
 )
 data['Position'] = data['Signal'].diff()
 
