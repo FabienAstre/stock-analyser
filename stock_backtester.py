@@ -42,7 +42,7 @@ long_window = st.sidebar.slider("Long SMA Window", 20, 200, 50)
 data['SMA_Short'] = data['Close'].rolling(window=short_window).mean()
 data['SMA_Long'] = data['Close'].rolling(window=long_window).mean()
 
-# Generate buy/sell signals with corrected assignment
+# Generate buy/sell signals with correct .loc assignment
 data['Signal'] = 0
 mask = data.index[short_window:]
 data.loc[mask, 'Signal'] = np.where(
@@ -76,17 +76,15 @@ st.plotly_chart(fig_sma, use_container_width=True)
 # --- Backtest ---
 initial_capital = 10000
 positions = pd.DataFrame(index=data.index)
-positions['Position'] = data['Signal'] * (initial_capital / data['Close'].iloc[0])
+positions['Position'] = data['Signal'].fillna(0) * (initial_capital / data['Close'].iloc[0])
+positions['Position'] = positions['Position'].fillna(0)
 
 portfolio = pd.DataFrame(index=data.index)
-portfolio['Holdings'] = positions['Position'] * data['Close']
+portfolio['Holdings'] = positions['Position'].reindex(data.index).fillna(0) * data['Close'].reindex(data.index).fillna(0)
 
-# Calculate trades and cash
-trade_values = positions['Position'].diff() * data['Close']
-trade_values.fillna(0, inplace=True)
+trade_values = positions['Position'].diff().fillna(0) * data['Close'].fillna(0)
 portfolio['Cash'] = initial_capital - trade_values.cumsum()
 
-# Total portfolio value
 portfolio['Total'] = portfolio['Holdings'] + portfolio['Cash']
 
 # --- Plot Portfolio Value ---
