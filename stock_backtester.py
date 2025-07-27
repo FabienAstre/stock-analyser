@@ -44,7 +44,9 @@ data['SMA_Long'] = data['Close'].rolling(window=long_window).mean()
 
 # Generate buy/sell signals
 data['Signal'] = 0
-data['Signal'][short_window:] = np.where(data['SMA_Short'][short_window:] > data['SMA_Long'][short_window:], 1, 0)
+data['Signal'][short_window:] = np.where(
+    data['SMA_Short'][short_window:] > data['SMA_Long'][short_window:], 1, 0
+)
 data['Position'] = data['Signal'].diff()
 
 # Plot SMA Crossover
@@ -56,12 +58,16 @@ fig_sma.add_trace(go.Scatter(x=data.index, y=data['SMA_Long'], mode='lines', nam
 # Add buy/sell markers
 buy_signals = data[data['Position'] == 1]
 sell_signals = data[data['Position'] == -1]
-fig_sma.add_trace(go.Scatter(x=buy_signals.index, y=buy_signals['Close'],
-                             mode='markers', marker=dict(symbol='triangle-up', size=10, color='green'),
-                             name='Buy Signal'))
-fig_sma.add_trace(go.Scatter(x=sell_signals.index, y=sell_signals['Close'],
-                             mode='markers', marker=dict(symbol='triangle-down', size=10, color='red'),
-                             name='Sell Signal'))
+fig_sma.add_trace(go.Scatter(
+    x=buy_signals.index, y=buy_signals['Close'],
+    mode='markers', marker=dict(symbol='triangle-up', size=10, color='green'),
+    name='Buy Signal'
+))
+fig_sma.add_trace(go.Scatter(
+    x=sell_signals.index, y=sell_signals['Close'],
+    mode='markers', marker=dict(symbol='triangle-down', size=10, color='red'),
+    name='Sell Signal'
+))
 
 fig_sma.update_layout(title=f"SMA Crossover Strategy for {ticker}", xaxis_title="Date", yaxis_title="Price")
 st.plotly_chart(fig_sma, use_container_width=True)
@@ -70,10 +76,19 @@ st.plotly_chart(fig_sma, use_container_width=True)
 initial_capital = 10000
 positions = pd.DataFrame(index=data.index)
 positions['Position'] = data['Signal'] * (initial_capital / data['Close'].iloc[0])
-portfolio = positions.multiply(data['Close'], axis=0)
-portfolio['Cash'] = initial_capital - (positions.diff().multiply(data['Close'], axis=0)).cumsum()
-portfolio['Total'] = portfolio['Position'] + portfolio['Cash']
 
+portfolio = pd.DataFrame(index=data.index)
+portfolio['Holdings'] = positions['Position'] * data['Close']
+
+# Calculate trades and cash
+trade_values = positions['Position'].diff() * data['Close']
+trade_values.fillna(0, inplace=True)
+portfolio['Cash'] = initial_capital - trade_values.cumsum()
+
+# Total portfolio value
+portfolio['Total'] = portfolio['Holdings'] + portfolio['Cash']
+
+# --- Plot Portfolio Value ---
 st.subheader("Backtest Portfolio Value")
 fig_port = go.Figure()
 fig_port.add_trace(go.Scatter(x=portfolio.index, y=portfolio['Total'], mode='lines', name='Portfolio Value'))
