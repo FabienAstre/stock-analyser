@@ -140,7 +140,7 @@ def analyze_ticker(ticker):
     if df is None or df.empty:
         return None, None, f"No data for {ticker}"
 
-    # Indicators
+    # Calculate indicators
     df['SMA20'] = df['Close'].rolling(20).mean()
     df['SMA50'] = df['Close'].rolling(50).mean()
     df['RSI'] = rsi(df['Close'])
@@ -148,14 +148,14 @@ def analyze_ticker(ticker):
     df['ATR'] = atr(df)
     df['Support'], df['Resistance'] = support_resistance(df, window=sr_window)
 
-required_cols = ['SMA20', 'SMA50', 'RSI', 'MACD', 'MACD_signal', 'ATR', 'Support', 'Resistance']
-existing_cols = [col for col in required_cols if col in df.columns]
+    required_cols = ['SMA20', 'SMA50', 'RSI', 'MACD', 'MACD_signal', 'ATR', 'Support', 'Resistance']
+    existing_cols = [col for col in required_cols if col in df.columns]
 
-if len(existing_cols) < len(required_cols):
-    missing = set(required_cols) - set(existing_cols)
-    return None, None, f"Missing indicator columns: {', '.join(missing)}"
+    if len(existing_cols) < len(required_cols):
+        missing = set(required_cols) - set(existing_cols)
+        return None, None, f"Missing indicator columns: {', '.join(missing)}"
 
-df.dropna(subset=existing_cols, inplace=True)
+    df.dropna(subset=existing_cols, inplace=True)
     if df.empty:
         return None, None, f"Not enough data to calculate indicators for {ticker}"
 
@@ -167,7 +167,9 @@ df.dropna(subset=existing_cols, inplace=True)
 
 # ---------------------- UI ----------------------
 
-ticker_to_analyze = st.selectbox("Choose a stock to analyze", options=portfolio_tickers, index=0 if portfolio_tickers else None)
+ticker_to_analyze = None
+if portfolio_tickers:
+    ticker_to_analyze = st.selectbox("Choose a stock to analyze", options=portfolio_tickers, index=0)
 
 if ticker_to_analyze:
     result = analyze_ticker(ticker_to_analyze)
@@ -209,6 +211,5 @@ if ticker_to_analyze:
             fig_macd.add_trace(go.Scatter(x=df.index, y=df['MACD'], name='MACD', line=dict(color='blue')))
             fig_macd.add_trace(go.Scatter(x=df.index, y=df['MACD_signal'], name='Signal Line', line=dict(color='orange')))
             st.plotly_chart(fig_macd, use_container_width=True)
-
 else:
     st.info("Please enter tickers in the sidebar to analyze.")
