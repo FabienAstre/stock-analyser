@@ -1,6 +1,5 @@
-openai
-agno
-duckduckgo-search
+streamlit
 yfinance
-fastapi[standard] 
-sqlalchemy
+pandas
+requests
+nltk
