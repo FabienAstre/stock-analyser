@@ -1,12 +1,11 @@
 import streamlit as st
 from ultralytics import YOLO
 import tempfile
-import cv2
 import numpy as np
 from PIL import Image
 from pathlib import Path
 
-st.title("📈 YOLO Stock Pattern Detection - Upload Model & PNG Image")
+st.title("📈 YOLO Stock Pattern Detection - Upload Model & Image")
 
 # Step 1: Upload YOLOv8 model
 uploaded_model = st.file_uploader("Upload your YOLO model (.pt)", type=["pt"])
@@ -24,20 +23,18 @@ if uploaded_model:
         st.error(f"❌ Error loading model: {e}")
         st.stop()
 
-    # Step 2: Upload PNG image to detect on
-    uploaded_image = st.file_uploader("Upload a PNG image", type=["png"])
+    # Step 2: Upload image to detect on (accept png, jpg, jpeg)
+    uploaded_image = st.file_uploader("Upload an image (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
 
     if uploaded_image:
         image = Image.open(uploaded_image).convert("RGB")
-        img_array = np.array(image)
-
         # Save image temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
             image.save(tmp_img.name)
             img_path = Path(tmp_img.name)
 
         # Run detection
-        results = model(str(img_path), save=True)  # saves annotated image in results[0].save_dir
+        results = model(str(img_path), save=True)
 
         # Get annotated image path
         save_dir = results[0].save_dir
