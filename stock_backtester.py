@@ -4,8 +4,9 @@ import tempfile
 import cv2
 import numpy as np
 from PIL import Image
+from pathlib import Path
 
-st.title("📈 YOLO Stock Pattern Detection - Upload Model & Image")
+st.title("📈 YOLO Stock Pattern Detection - Upload Model & PNG Image")
 
 # Step 1: Upload YOLOv8 model
 uploaded_model = st.file_uploader("Upload your YOLO model (.pt)", type=["pt"])
@@ -23,8 +24,8 @@ if uploaded_model:
         st.error(f"❌ Error loading model: {e}")
         st.stop()
 
-    # Step 2: Upload image to detect on
-    uploaded_image = st.file_uploader("Upload an image (screenshot, chart, etc.)", type=["png", "jpg", "jpeg"])
+    # Step 2: Upload PNG image to detect on
+    uploaded_image = st.file_uploader("Upload a PNG image", type=["png"])
 
     if uploaded_image:
         image = Image.open(uploaded_image).convert("RGB")
@@ -33,16 +34,16 @@ if uploaded_model:
         # Save image temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
             image.save(tmp_img.name)
-            img_path = tmp_img.name
+            img_path = Path(tmp_img.name)
 
         # Run detection
-        results = model(img_path, save=True)  # saves annotated image to results[0].save_dir
+        results = model(str(img_path), save=True)  # saves annotated image in results[0].save_dir
 
         # Get annotated image path
         save_dir = results[0].save_dir
-        annotated_images = list(save_dir.glob("*.jpg")) + list(save_dir.glob("*.png"))
+        annotated_images = list(save_dir.glob("*.png")) + list(save_dir.glob("*.jpg"))
         if annotated_images:
-            annotated_img_path = str(annotated_images[0])
+            annotated_img_path = annotated_images[0]
             annotated_img = Image.open(annotated_img_path)
         else:
             annotated_img = image
