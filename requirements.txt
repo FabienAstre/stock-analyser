@@ -1,6 +1,5 @@
-streamlit
-yfinance
-pandas
-plotly
-transformers
-torch
+opencv-python
+numpy
+mss
+ultralytics
+openpyxl
