@@ -3,3 +3,4 @@ yfinance
 pandas
 requests
 nltk
+plotly
